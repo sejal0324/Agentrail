@@ -1,19 +1,21 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import { config } from './config.js';
+import apiRouter from './routes/index.js';
 
 const app = express();
-const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
-app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', message: 'AgentRail Backend is healthy' });
+// Mount API router
+app.use('/api', apiRouter);
+
+// Unknown route handler
+app.use((req: Request, res: Response) => {
+  res.status(404).json({ error: 'Route not found' });
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+app.listen(config.PORT, () => {
+  console.log(`Server is running on port ${config.PORT}`);
 });
