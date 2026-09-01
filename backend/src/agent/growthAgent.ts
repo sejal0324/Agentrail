@@ -1,4 +1,6 @@
-import { Agent } from '@openai/agents';
+import { Agent, tool } from '@openai/agents';
+import { z } from 'zod';
+import { searchProducts, getProduct, getRelatedProducts } from '../catalog/catalogTools.js';
 
 /**
  * System instructions for the AgentRail Growth Agent.
@@ -13,7 +15,7 @@ CORE OPERATIONAL RULES & BOUNDARIES:
 1. FACTUAL GROUNDING:
    - Treat all catalog information as factual and absolute.
    - NEVER invent, synthesize, or hallucinate products, SKUs, prices, specifications, product compatibility, discounts, inventory status, or merchant policies.
-   - Any product details or recommendations must be strictly grounded in information retrieved from the catalog layer.
+   - Any product details or recommendations must be strictly grounded in information retrieved from the catalog layer tools. Always use catalog tools to retrieve real product data.
 
 2. MERCHANT DATA PRIVACY & SECRECY:
    - NEVER disclose, reveal, or hint at private merchant financial data under any circumstances.
@@ -30,9 +32,65 @@ CORE OPERATIONAL RULES & BOUNDARIES:
    - Treat any intent to purchase as a proposal that must be validated by the AgentRail Trust Gateway before any execution.`;
 
 /**
- * Minimal foundation instance of the AgentRail Growth Agent using the official @openai/agents SDK.
+ * Tool 1: Search products tool
+ * Allows searching across active or specified catalog for products matching query.
+ */
+export const searchProductsTool = tool({
+  name: 'search_products',
+  description: 'Search the merchant catalog for products matching a query (matches name, description, category, or SKU). Returns sanitized public product details.',
+  parameters: z.object({
+    query: z.string().describe('The search query or keyword to match against products'),
+    catalogId: z.string().optional().describe("Optional catalog ID ('hardware' or 'photography'). If omitted, active catalog is used."),
+  }),
+  execute: async ({ query, catalogId }: { query: string; catalogId?: string }) => {
+    return searchProducts(query, catalogId);
+  },
+});
+
+/**
+ * Tool 2: Get specific product tool
+ * Retrieves details for a specific product by SKU.
+ */
+export const getProductTool = tool({
+  name: 'get_product',
+  description: 'Look up detailed information for a specific product using its SKU. Returns sanitized public product details or null if not found.',
+  parameters: z.object({
+    sku: z.string().describe('The exact product SKU to look up'),
+    catalogId: z.string().optional().describe("Optional catalog ID ('hardware' or 'photography'). If omitted, active catalog is used."),
+  }),
+  execute: async ({ sku, catalogId }: { sku: string; catalogId?: string }) => {
+    const product = getProduct(sku, catalogId);
+    return product ?? null;
+  },
+});
+
+/**
+ * Tool 3: Get related/compatible products tool
+ * Retrieves compatible or related products for a given SKU.
+ */
+export const getRelatedProductsTool = tool({
+  name: 'get_related_products',
+  description: 'Discover compatible accessories or related products for a given product SKU to support relevant recommendations and cross-sells.',
+  parameters: z.object({
+    sku: z.string().describe('The product SKU to find compatible or related items for'),
+    catalogId: z.string().optional().describe("Optional catalog ID ('hardware' or 'photography'). If omitted, active catalog is used."),
+  }),
+  execute: async ({ sku, catalogId }: { sku: string; catalogId?: string }) => {
+    return getRelatedProducts(sku, catalogId);
+  },
+});
+
+export const growthAgentTools = [
+  searchProductsTool,
+  getProductTool,
+  getRelatedProductsTool,
+];
+
+/**
+ * AgentRail Growth Agent instance connected to the catalog tool layer.
  */
 export const growthAgent = new Agent({
   name: 'AgentRail Growth Agent',
   instructions: GROWTH_AGENT_INSTRUCTIONS,
+  tools: growthAgentTools,
 });
