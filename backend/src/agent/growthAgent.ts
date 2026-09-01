@@ -43,6 +43,7 @@ export const searchProductsTool = tool({
     catalogId: z.string().optional().describe("Optional catalog ID ('hardware' or 'photography'). If omitted, active catalog is used."),
   }),
   execute: async ({ query, catalogId }: { query: string; catalogId?: string }) => {
+    console.log(`[GrowthAgent Tool Call] search_products(query: "${query}"${catalogId ? `, catalogId: "${catalogId}"` : ''})`);
     return searchProducts(query, catalogId);
   },
 });
@@ -59,6 +60,7 @@ export const getProductTool = tool({
     catalogId: z.string().optional().describe("Optional catalog ID ('hardware' or 'photography'). If omitted, active catalog is used."),
   }),
   execute: async ({ sku, catalogId }: { sku: string; catalogId?: string }) => {
+    console.log(`[GrowthAgent Tool Call] get_product(sku: "${sku}"${catalogId ? `, catalogId: "${catalogId}"` : ''})`);
     const product = getProduct(sku, catalogId);
     return product ?? null;
   },
@@ -76,6 +78,7 @@ export const getRelatedProductsTool = tool({
     catalogId: z.string().optional().describe("Optional catalog ID ('hardware' or 'photography'). If omitted, active catalog is used."),
   }),
   execute: async ({ sku, catalogId }: { sku: string; catalogId?: string }) => {
+    console.log(`[GrowthAgent Tool Call] get_related_products(sku: "${sku}"${catalogId ? `, catalogId: "${catalogId}"` : ''})`);
     return getRelatedProducts(sku, catalogId);
   },
 });
@@ -93,4 +96,6 @@ export const growthAgent = new Agent({
   name: 'AgentRail Growth Agent',
   instructions: GROWTH_AGENT_INSTRUCTIONS,
   tools: growthAgentTools,
+  model: 'openai/gpt-oss-120b',
 });
+
