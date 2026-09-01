@@ -2,7 +2,7 @@
   "name": "agentrail-root",
   "version": "1.0.0",
   "private": true,
-  "description": "AgentRail Monorepo Root - Growth Agent and Trust Gateway",
+  "description": "AgentRail Monorepo Root - Growth Agent and RailFence Policy Boundary",
   "workspaces": [
     "backend",
     "frontend"
