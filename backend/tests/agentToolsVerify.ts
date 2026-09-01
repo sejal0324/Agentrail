@@ -1,4 +1,4 @@
-import { growthAgent, growthAgentTools, searchProductsTool, getProductTool, getRelatedProductsTool } from '../src/agent/growthAgent.js';
+import { growthAgent, growthAgentTools, searchProductsTool, getProductTool, getRelatedProductsTool, createTransactionProposalTool } from '../src/agent/growthAgent.js';
 import { PublicProduct } from '../src/catalog/catalogTypes.js';
 
 async function runAgentToolsVerification() {
@@ -10,14 +10,19 @@ async function runAgentToolsVerification() {
     throw new Error(`Expected agent name 'AgentRail Growth Agent', got '${growthAgent.name}'`);
   }
 
-  if (growthAgentTools.length !== 3) {
-    throw new Error(`Expected 3 tools registered, got ${growthAgentTools.length}`);
+  if (growthAgentTools.length !== 4) {
+    throw new Error(`Expected 4 tools registered, got ${growthAgentTools.length}`);
   }
 
   const toolNames = growthAgentTools.map(t => t.name);
   console.log(`Registered tools: ${toolNames.join(', ')}`);
   
-  if (!toolNames.includes('search_products') || !toolNames.includes('get_product') || !toolNames.includes('get_related_products')) {
+  if (
+    !toolNames.includes('search_products') ||
+    !toolNames.includes('get_product') ||
+    !toolNames.includes('get_related_products') ||
+    !toolNames.includes('create_transaction_proposal')
+  ) {
     throw new Error(`Tool names mismatch. Got: ${toolNames.join(', ')}`);
   }
   console.log('Agent metadata and tool registration verified.');
@@ -67,8 +72,30 @@ async function runAgentToolsVerification() {
   }
   console.log('get_related_products tool execution verified for both catalogs.');
 
-  // 5. Verify no floorPrice appears in any tool output
-  console.log('\n5. Verifying sanitization across all tool outputs...');
+  // 5. Test create_transaction_proposal tool invocation
+  console.log('\n5. Testing create_transaction_proposal tool invocation...');
+  const proposalResult = await createTransactionProposalTool.invoke({} as any, JSON.stringify({
+    items: [
+      { sku: 'HW-LAPTOP', quantity: 1, proposedUnitPrice: 75000, originalUnitPrice: 80000 },
+      { sku: 'HW-DOCK', quantity: 1, proposedUnitPrice: 9000, originalUnitPrice: 10000 }
+    ],
+    proposedDiscountPercent: 6.67,
+    proposedTotal: 84000,
+    currency: 'INR',
+    appliedGrowthActions: ['bundle', 'cross_sell'],
+    negotiationContext: 'Negotiated hardware bundle discount'
+  })) as any;
+
+  if (!proposalResult || proposalResult.status !== 'PROPOSAL_GENERATED' || !proposalResult.proposal) {
+    throw new Error(`create_transaction_proposal failed. Got: ${JSON.stringify(proposalResult)}`);
+  }
+  if (proposalResult.proposal.items.length !== 2 || proposalResult.proposal.proposedTotal !== 84000) {
+    throw new Error(`Proposal payload mismatch: ${JSON.stringify(proposalResult.proposal)}`);
+  }
+  console.log('create_transaction_proposal tool execution verified.');
+
+  // 6. Verify no floorPrice appears in any tool output
+  console.log('\n6. Verifying sanitization across all tool outputs...');
   const allOutputs = [
     ...searchResultHardware,
     ...searchResultPhoto,
@@ -83,6 +110,9 @@ async function runAgentToolsVerification() {
       throw new Error(`SECURITY VIOLATION: Tool output contains floorPrice: ${JSON.stringify(item)}`);
     }
   }
+  if ('floorPrice' in proposalResult.proposal) {
+    throw new Error(`SECURITY VIOLATION: Proposal contains floorPrice`);
+  }
   console.log('Sanitization check passed: zero tool outputs contain floorPrice.');
 
   console.log('\n--- ALL AGENT TOOLS WIRING VERIFICATIONS PASSED ---');
@@ -92,3 +122,4 @@ runAgentToolsVerification().catch((err) => {
   console.error('\nVerification Failed with Error:', err.message);
   process.exit(1);
 });
+
