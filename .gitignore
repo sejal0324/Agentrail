@@ -9,6 +9,7 @@ build/
 out/
 .next/
 .nuxt/
+*.tsbuildinfo
 
 # Environment Variables & Secrets
 .env

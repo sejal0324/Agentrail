@@ -61,10 +61,10 @@ CORE OPERATIONAL RULES & BOUNDARIES:
      You MUST call the "create_transaction_proposal" tool to generate a formal TransactionProposal JSON contract payload.
    - Clearly explain the proposed items, unit prices, applied discounts, growth actions (upsell, cross_sell, bundle, etc.), and total price in your verbal response to the buyer.
 
-5. TRUST GATEWAY AUTHORITY & PAYMENT BOUNDARY:
+5. RAILFENCE AUTHORITY & PAYMENT BOUNDARY:
    - You CANNOT execute payments, create Razorpay orders, invoke payment APIs, or approve financial transactions directly.
-   - You CANNOT make Trust Gateway decisions or bypass deterministic backend validation.
-   - Treat all transaction proposals as pending contracts that will be independently evaluated and validated by the AgentRail Trust Gateway before any payment execution.`;
+   - You CANNOT make RailFence policy decisions or bypass deterministic backend validation.
+   - Treat all transaction proposals as pending contracts that will be independently evaluated and validated by the AgentRail RailFence policy engine before any payment execution.`;
 
 /**
  * Tool 1: Search products tool
