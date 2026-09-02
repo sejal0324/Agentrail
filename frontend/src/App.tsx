@@ -89,7 +89,7 @@ export default function App() {
       <main className="flex-1 max-w-[1700px] w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* LEFT PANEL: Interactive Buyer Agent Chat Panel (5 columns on lg) */}
         <section className="lg:col-span-5 flex flex-col h-[750px] lg:h-auto">
-          <ChatPanel />
+          <ChatPanel onTransactionComplete={refetch} />
         </section>
 
         {/* RIGHT PANEL: Telemetry & Metrics Dashboard (7 columns on lg) */}

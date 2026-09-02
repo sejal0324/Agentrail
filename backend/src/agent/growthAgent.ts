@@ -2,7 +2,34 @@ import { Agent, tool } from '@openai/agents';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { searchProducts, getProduct, getRelatedProducts } from '../catalog/catalogTools.js';
-import { validateTransactionProposal, GrowthActionEnum } from './proposalTypes.js';
+import { validateTransactionProposal, GrowthActionEnum, TransactionProposal } from './proposalTypes.js';
+
+// Internal session-based proposal registry for capturing agent-created proposals during execution
+const latestProposalsMap: Map<string, TransactionProposal> = new Map();
+let latestGlobalProposal: TransactionProposal | undefined = undefined;
+
+/**
+ * Clears stored proposal state for a session or globally.
+ */
+export function clearLatestProposal(sessionId?: string): void {
+  if (sessionId) {
+    latestProposalsMap.delete(sessionId);
+  } else {
+    latestProposalsMap.clear();
+    latestGlobalProposal = undefined;
+  }
+}
+
+/**
+ * Retrieves the latest TransactionProposal generated during agent execution.
+ */
+export function getLatestProposal(sessionId?: string): TransactionProposal | undefined {
+  if (sessionId && latestProposalsMap.has(sessionId)) {
+    return latestProposalsMap.get(sessionId);
+  }
+  return latestGlobalProposal;
+}
+
 
 /**
  * System instructions for the AgentRail Growth Agent.
@@ -161,6 +188,8 @@ export const createTransactionProposalTool = tool({
     };
 
     const validatedProposal = validateTransactionProposal(proposalRaw);
+    latestProposalsMap.set(validatedProposal.sessionId, validatedProposal);
+    latestGlobalProposal = validatedProposal;
     console.log(`[GrowthAgent Proposal Created] UUID: ${validatedProposal.transactionId}`);
     return {
       status: 'PROPOSAL_GENERATED',

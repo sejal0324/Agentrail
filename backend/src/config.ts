@@ -1,7 +1,9 @@
 import dotenv from 'dotenv';
+import path from 'path';
 
-// Load environment variables using the existing setup
+// Load environment variables from backend directory and root directory fallback
 dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
 
 export interface Config {
   PORT: number;
