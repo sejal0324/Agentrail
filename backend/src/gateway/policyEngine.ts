@@ -93,6 +93,37 @@ export function generateContractHash(proposal: TransactionProposal): string {
  */
 export class RailFencePolicyEngine {
   private sessionVelocityMap: Map<string, SessionVelocityState> = new Map();
+  private activePolicy: RailFencePolicyConfig = { ...DEFAULT_RAILFENCE_POLICY };
+
+  /**
+   * Retrieves the current active merchant policy configuration.
+   * Guarantees zero leakage of private floor prices or secret cost structures.
+   */
+  public getPolicy(): RailFencePolicyConfig {
+    return { ...this.activePolicy };
+  }
+
+  /**
+   * Updates active merchant policy limits.
+   * Floor price validation remains strictly enabled and server-side.
+   */
+  public updatePolicy(newPolicy: Partial<RailFencePolicyConfig>): RailFencePolicyConfig {
+    if (typeof newPolicy.maxDiscountPercent === 'number' && !isNaN(newPolicy.maxDiscountPercent) && newPolicy.maxDiscountPercent >= 0) {
+      this.activePolicy.maxDiscountPercent = newPolicy.maxDiscountPercent;
+    }
+    if (typeof newPolicy.maxTransactionAmount === 'number' && !isNaN(newPolicy.maxTransactionAmount) && newPolicy.maxTransactionAmount >= 0) {
+      this.activePolicy.maxTransactionAmount = newPolicy.maxTransactionAmount;
+    }
+    if (typeof newPolicy.maxOrdersPerSession === 'number' && !isNaN(newPolicy.maxOrdersPerSession) && newPolicy.maxOrdersPerSession >= 0) {
+      this.activePolicy.maxOrdersPerSession = newPolicy.maxOrdersPerSession;
+    }
+    if (typeof newPolicy.maxSpendPerSession === 'number' && !isNaN(newPolicy.maxSpendPerSession) && newPolicy.maxSpendPerSession >= 0) {
+      this.activePolicy.maxSpendPerSession = newPolicy.maxSpendPerSession;
+    }
+    // Always keep strictFloorPriceCheck enabled server-side
+    this.activePolicy.strictFloorPriceCheck = true;
+    return this.getPolicy();
+  }
 
   /**
    * Retrieves or initializes velocity state for a session.
@@ -129,7 +160,11 @@ export class RailFencePolicyEngine {
     customPolicy: Partial<RailFencePolicyConfig> = {},
     catalogId?: string
   ): PolicyEvaluationResult {
-    const policy: RailFencePolicyConfig = { ...DEFAULT_RAILFENCE_POLICY, ...customPolicy };
+    const policy: RailFencePolicyConfig = {
+      ...this.activePolicy,
+      ...customPolicy,
+      strictFloorPriceCheck: true,
+    };
     const evaluatedAt = new Date().toISOString();
     const reasons: string[] = [];
 

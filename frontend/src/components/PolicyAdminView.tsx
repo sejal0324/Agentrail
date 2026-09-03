@@ -1,29 +1,113 @@
-import React from 'react';
-import { ShieldCheck, Lock, Sliders, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShieldCheck, Lock, Sliders, AlertTriangle, Edit3, Check, RefreshCw } from 'lucide-react';
+
+interface PolicyConfig {
+  maxDiscountPercent: number;
+  maxTransactionAmount: number;
+  maxOrdersPerSession: number;
+  maxSpendPerSession: number;
+  strictFloorPriceCheck: boolean;
+}
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export const PolicyAdminView: React.FC = () => {
-  const policies = [
+  const [policy, setPolicy] = useState<PolicyConfig>({
+    maxDiscountPercent: 25,
+    maxTransactionAmount: 200000,
+    maxOrdersPerSession: 3,
+    maxSpendPerSession: 300000,
+    strictFloorPriceCheck: true,
+  });
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Form states for editing
+  const [discountPercent, setDiscountPercent] = useState<number>(25);
+  const [txAmount, setTxAmount] = useState<number>(200000);
+  const [ordersPerSession, setOrdersPerSession] = useState<number>(3);
+  const [spendPerSession, setSpendPerSession] = useState<number>(300000);
+
+  const fetchPolicy = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/policy`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.policy) {
+          setPolicy(data.policy);
+          setDiscountPercent(data.policy.maxDiscountPercent);
+          setTxAmount(data.policy.maxTransactionAmount);
+          setOrdersPerSession(data.policy.maxOrdersPerSession);
+          setSpendPerSession(data.policy.maxSpendPerSession);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch policy:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPolicy();
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setSaveSuccess(false);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/policy`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          maxDiscountPercent: Number(discountPercent),
+          maxTransactionAmount: Number(txAmount),
+          maxOrdersPerSession: Number(ordersPerSession),
+          maxSpendPerSession: Number(spendPerSession),
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.policy) {
+          setPolicy(data.policy);
+          setSaveSuccess(true);
+          setIsEditing(false);
+          setTimeout(() => setSaveSuccess(false), 3000);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to update policy:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const policyDisplayItems = [
     {
       label: 'Max Discount Limit',
-      value: '25%',
+      value: `${policy.maxDiscountPercent}%`,
       subtext: 'Calculated relative to public list price',
       icon: Sliders,
     },
     {
       label: 'Single Transaction Cap',
-      value: '₹200,000',
+      value: `₹${policy.maxTransactionAmount.toLocaleString('en-IN')}`,
       subtext: 'Maximum allowed total per order',
       icon: Lock,
     },
     {
       label: 'Session Order Cap',
-      value: '3 orders / session',
+      value: `${policy.maxOrdersPerSession} orders / session`,
       subtext: 'Velocity limit against runaway agents',
       icon: ShieldCheck,
     },
     {
       label: 'Session Spend Cap',
-      value: '₹300,000',
+      value: `₹${policy.maxSpendPerSession.toLocaleString('en-IN')}`,
       subtext: 'Cumulative maximum session spend',
       icon: AlertTriangle,
     },
@@ -45,40 +129,159 @@ export const PolicyAdminView: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center space-x-1.5 bg-slate-950 px-2.5 py-1 rounded border border-slate-800 text-[11px] text-emerald-400 font-mono">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span>POLICIES ACTIVE</span>
+        <div className="flex items-center space-x-2">
+          {saveSuccess && (
+            <span className="text-[11px] text-emerald-400 font-medium flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+              <Check className="w-3 h-3" /> Updated
+            </span>
+          )}
+
+          <button
+            onClick={() => {
+              if (!isEditing) {
+                setDiscountPercent(policy.maxDiscountPercent);
+                setTxAmount(policy.maxTransactionAmount);
+                setOrdersPerSession(policy.maxOrdersPerSession);
+                setSpendPerSession(policy.maxSpendPerSession);
+              }
+              setIsEditing(!isEditing);
+            }}
+            className="flex items-center space-x-1 bg-slate-950 hover:bg-slate-800 px-2.5 py-1 rounded border border-slate-800 text-[11px] text-blue-400 font-medium transition-colors"
+          >
+            <Edit3 className="w-3 h-3" />
+            <span>{isEditing ? 'Cancel Edit' : 'Configure Policy'}</span>
+          </button>
+
+          <div className="flex items-center space-x-1.5 bg-slate-950 px-2.5 py-1 rounded border border-slate-800 text-[11px] text-emerald-400 font-mono">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>POLICIES ACTIVE</span>
+          </div>
         </div>
       </div>
 
-      {/* Grid of active policy rules */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-        {policies.map((p, idx) => {
-          const IconComp = p.icon;
-          return (
-            <div
-              key={idx}
-              className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-3 flex flex-col justify-between"
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] font-medium text-slate-400">{p.label}</span>
-                <IconComp className="w-3.5 h-3.5 text-slate-500" />
-              </div>
-              <div>
-                <div className="text-sm font-bold text-slate-100 font-mono">{p.value}</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">{p.subtext}</div>
-              </div>
+      {/* Edit Form Modal/Panel */}
+      {isEditing ? (
+        <form onSubmit={handleSave} className="bg-slate-950/80 border border-blue-500/30 rounded-lg p-3 mb-3 space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span className="text-xs font-semibold text-blue-400">Edit Merchant Policy Guardrails</span>
+            <span className="text-[10px] text-slate-400">Changes apply immediately in-memory</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[10px] font-medium text-slate-400 mb-1">
+                Max Discount %
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={discountPercent}
+                onChange={(e) => setDiscountPercent(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-blue-500"
+              />
             </div>
-          );
-        })}
-      </div>
+
+            <div>
+              <label className="block text-[10px] font-medium text-slate-400 mb-1">
+                Single Order Cap (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1000"
+                value={txAmount}
+                onChange={(e) => setTxAmount(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-medium text-slate-400 mb-1">
+                Max Orders / Session
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={ordersPerSession}
+                onChange={(e) => setOrdersPerSession(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-medium text-slate-400 mb-1">
+                Session Spend Cap (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="5000"
+                value={spendPerSession}
+                onChange={(e) => setSpendPerSession(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="px-3 py-1 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="px-3.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-medium transition-colors flex items-center space-x-1.5 disabled:opacity-50"
+            >
+              {isSaving ? (
+                <>
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-3 h-3" />
+                  <span>Apply Merchant Policy</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      ) : (
+        /* Grid of active policy rules */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+          {policyDisplayItems.map((p, idx) => {
+            const IconComp = p.icon;
+            return (
+              <div
+                key={idx}
+                className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-3 flex flex-col justify-between"
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-medium text-slate-400">{p.label}</span>
+                  <IconComp className="w-3.5 h-3.5 text-slate-500" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-slate-100 font-mono">{p.value}</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">{p.subtext}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Strict Floor Price Check Security Notice */}
       <div className="bg-slate-950/90 border border-slate-800/80 rounded-lg p-2.5 flex items-center justify-between text-xs">
         <div className="flex items-center space-x-2">
           <Lock className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
           <span className="text-slate-300 text-[11px]">
-            <strong className="text-slate-200">Strict Floor Price Validation:</strong> Enabled (Private merchant cost &amp; floor prices are evaluated server-side and never exposed over telemetry).
+            <strong className="text-slate-200">Strict Floor Price Validation:</strong> Enabled (Private merchant cost &amp; floor prices are evaluated server-side and never exposed over telemetry or frontend API).
           </span>
         </div>
         <span className="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded font-mono hidden sm:inline-block">

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, ShieldCheck, Cpu, CornerDownLeft, AlertTriangle } from 'lucide-react';
+import { Send, Bot, User, ShieldCheck, Cpu, CornerDownLeft, AlertTriangle, Sparkles, TrendingUp, ShoppingBag } from 'lucide-react';
 
 interface ChatMessage {
   id: string;
@@ -25,6 +25,8 @@ interface ChatMessage {
 interface ChatPanelProps {
   onTransactionComplete?: () => void;
 }
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({ onTransactionComplete }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -65,7 +67,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onTransactionComplete }) =
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -196,24 +198,59 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onTransactionComplete }) =
             >
               {msg.text}
 
-              {/* Proposal Summary if present */}
+              {/* Proposal Summary & Growth Opportunity Visibility */}
               {msg.proposal && (
-                <div className="mt-2.5 pt-2 border-t border-slate-700/60 text-[11px] font-sans space-y-1">
-                  <div className="text-slate-300 font-semibold flex items-center justify-between">
-                    <span>Transaction Proposal</span>
+                <div className="mt-2.5 pt-2.5 border-t border-slate-700/60 text-[11px] font-sans space-y-2">
+                  <div className="text-slate-200 font-semibold flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-blue-400">
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                      Transaction Proposal
+                    </span>
                     {typeof msg.proposal.proposedTotal === 'number' && (
-                      <span className="font-mono text-emerald-400">
+                      <span className="font-mono text-emerald-400 text-xs font-bold">
                         ₹{msg.proposal.proposedTotal.toLocaleString('en-IN')}
                       </span>
                     )}
                   </div>
+
+                  {/* Growth Opportunity & Action Badges */}
+                  {msg.proposal.appliedGrowthActions && msg.proposal.appliedGrowthActions.length > 0 && (
+                    <div className="bg-slate-900/80 border border-amber-500/20 rounded p-2 space-y-1">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-amber-300 font-medium flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-amber-400" />
+                          Growth Opportunity Identified:
+                        </span>
+                        <div className="flex gap-1">
+                          {msg.proposal.appliedGrowthActions.map((action: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="bg-amber-500/10 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded font-mono uppercase text-[9px] font-semibold"
+                            >
+                              {action.replace('_', ' ')}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Buyer Primary Intent / Context */}
+                      {msg.proposal.negotiationContext && (
+                        <div className="text-[10px] text-slate-400 italic">
+                          <strong className="text-slate-300 not-italic">Buyer Intent Context: </strong>
+                          {msg.proposal.negotiationContext}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Proposal Items Breakdown */}
                   {msg.proposal.items && Array.isArray(msg.proposal.items) && msg.proposal.items.length > 0 && (
-                    <div className="text-slate-400 text-[10px] space-y-0.5">
+                    <div className="text-slate-400 text-[10px] space-y-0.5 bg-slate-950/40 p-2 rounded border border-slate-800">
                       {msg.proposal.items.map((item: any, idx: number) => (
                         <div key={idx} className="flex justify-between font-mono">
-                          <span>{item.sku} × {item.quantity}</span>
+                          <span>{item.quantity}x {item.sku}</span>
                           {typeof item.proposedUnitPrice === 'number' && (
-                            <span>₹{(item.proposedUnitPrice * item.quantity).toLocaleString('en-IN')}</span>
+                            <span className="text-slate-300">₹{(item.proposedUnitPrice * item.quantity).toLocaleString('en-IN')}</span>
                           )}
                         </div>
                       ))}
@@ -221,6 +258,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onTransactionComplete }) =
                   )}
                 </div>
               )}
+
 
               {/* Evaluation Status & Policy Reasons */}
               {msg.evaluation && (

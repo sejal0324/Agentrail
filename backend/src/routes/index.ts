@@ -2,10 +2,39 @@ import { Router, Request, Response } from 'express';
 import { getTelemetryMetrics, getAllTraces, sanitizeTrace, recordTrace } from '../telemetry/index.js';
 import { runGrowthAgent } from '../agent/runGrowthAgent.js';
 import { clearLatestProposal, getLatestProposal } from '../agent/growthAgent.js';
-import { evaluateProposal } from '../gateway/policyEngine.js';
+import { evaluateProposal, railFencePolicyEngine } from '../gateway/policyEngine.js';
 import { createRazorpayOrder, RazorpayOrderResult } from '../payments/razorpayClient.js';
 
 const router = Router();
+
+/**
+ * GET /api/policy
+ * Exposes active merchant-configured RailFence policy limits.
+ * Guarantees zero leakage of private floor prices or secret merchant financial data.
+ */
+router.get('/policy', (req: Request, res: Response) => {
+  try {
+    const policy = railFencePolicyEngine.getPolicy();
+    res.json({ success: true, policy });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || 'Failed to fetch policy' });
+  }
+});
+
+/**
+ * PUT /api/policy
+ * Updates active merchant policy limits (max discount %, transaction cap, session order cap, session spend cap).
+ * Floor price validation remains strictly enabled server-side.
+ */
+router.put('/policy', (req: Request, res: Response) => {
+  try {
+    const updatedPolicy = railFencePolicyEngine.updatePolicy(req.body || {});
+    res.json({ success: true, policy: updatedPolicy });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || 'Failed to update policy' });
+  }
+});
+
 
 router.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', message: 'AgentRail Backend is healthy' });

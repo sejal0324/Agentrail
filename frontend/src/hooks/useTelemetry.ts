@@ -10,6 +10,8 @@ export interface UseTelemetryResult {
   refetch: () => Promise<void>;
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
 export function useTelemetry(refreshIntervalMs = 5000): UseTelemetryResult {
   const [metrics, setMetrics] = useState<TelemetryMetrics | null>(null);
   const [traces, setTraces] = useState<DecisionTrace[]>([]);
@@ -20,8 +22,8 @@ export function useTelemetry(refreshIntervalMs = 5000): UseTelemetryResult {
   const fetchTelemetry = useCallback(async () => {
     try {
       const [metricsRes, tracesRes] = await Promise.all([
-        fetch('/api/metrics'),
-        fetch('/api/traces'),
+        fetch(`${API_BASE_URL}/api/metrics`),
+        fetch(`${API_BASE_URL}/api/traces`),
       ]);
 
       if (!metricsRes.ok) {
