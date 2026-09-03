@@ -155,13 +155,13 @@ Returns sanitized historical decision logs for telemetry audit logs and dashboar
 Create a `.env` file in the project root directory:
 
 ```env
-PORT=3001
+PORT=3000
 GROQ_API_KEY=your_groq_api_key_here
 RAZORPAY_KEY_ID=rzp_test_your_key_id
 RAZORPAY_KEY_SECRET=your_razorpay_secret
 ```
 
-*Note: If Razorpay credentials are omitted or unconfigured, the system gracefully falls back to simulated test mode responses, ensuring full offline functionality.*
+*Note: Razorpay Test Mode credentials are required for payment execution. If credentials are missing or invalid, the payment step fails clearly rather than using a simulated payment fallback.*
 
 ### Installation & Local Development
 
@@ -174,7 +174,7 @@ RAZORPAY_KEY_SECRET=your_razorpay_secret
    ```bash
    npm run dev
    ```
-   - Backend service runs on `http://localhost:3001`
+   - Backend service runs on `http://localhost:3000`
    - Frontend dashboard runs on `http://localhost:5173`
 
 3. **Build production bundles:**
