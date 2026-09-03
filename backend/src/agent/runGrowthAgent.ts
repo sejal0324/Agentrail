@@ -50,7 +50,7 @@ export async function runGrowthAgent(message: string, options?: RunGrowthAgentOp
   const runOptions = options?.maxTurns !== undefined ? { maxTurns: options.maxTurns } : undefined;
 
   const runner = new Runner({
-    ...(provider ? { provider } : {}),
+    ...(provider ? { modelProvider: provider } : {}),
     model,
   });
 
