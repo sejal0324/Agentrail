@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { DecisionTrace } from '../types/telemetry';
 import {
   FileText,
@@ -22,8 +22,30 @@ interface TraceLogTableProps {
 export const TraceLogTable: React.FC<TraceLogTableProps> = ({ traces, loading }) => {
   const [filter, setFilter] = useState<'ALL' | 'APPROVED' | 'BLOCKED'>('ALL');
   const [expandedTraceId, setExpandedTraceId] = useState<string | null>(null);
+  const [expandedHeight, setExpandedHeight] = useState<number>(0);
+  const observerRef = useRef<ResizeObserver | null>(null);
 
-  const filteredTraces = traces.filter((t) => {
+  const expandedRowRef = useCallback((node: HTMLTableRowElement | null) => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
+    }
+    if (node) {
+      observerRef.current = new ResizeObserver(() => {
+        setExpandedHeight(node.getBoundingClientRect().height);
+      });
+      observerRef.current.observe(node);
+      setExpandedHeight(node.getBoundingClientRect().height);
+    } else {
+      setExpandedHeight(0);
+    }
+  }, []);
+
+  const sortedTraces = [...traces].sort(
+    (a, b) => new Date(b.evaluatedAt).getTime() - new Date(a.evaluatedAt).getTime()
+  );
+
+  const filteredTraces = sortedTraces.filter((t) => {
     if (filter === 'APPROVED') return t.evaluationStatus === 'APPROVED';
     if (filter === 'BLOCKED') return t.evaluationStatus === 'BLOCKED';
     return true;
@@ -56,32 +78,34 @@ export const TraceLogTable: React.FC<TraceLogTableProps> = ({ traces, loading })
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-md flex flex-col">
+    <div className="bg-[#0f172a] border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 blur-3xl rounded-full -z-10 pointer-events-none"></div>
+      
       {/* Header & Filter Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-800 pb-3">
-        <div className="flex items-center space-x-2">
-          <div className="p-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 border-b border-slate-800/80 pb-4">
+        <div className="flex items-center space-x-3">
+          <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 shadow-inner">
             <FileText className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-xs font-semibold text-slate-100 uppercase tracking-wider">
+            <h3 className="text-xs font-bold text-slate-100 uppercase tracking-widest">
               Decision Trace Audit Log
             </h3>
-            <p className="text-[11px] text-slate-400">Immutable transaction evaluations</p>
+            <p className="text-[11px] text-slate-400 font-medium">Immutable transaction evaluations</p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <span className="text-xs text-slate-400">Filter:</span>
-          <div className="inline-flex rounded-lg bg-slate-950 p-1 border border-slate-800">
+        <div className="flex items-center space-x-3 bg-slate-900/50 p-1.5 rounded-lg border border-slate-800">
+          <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase px-2">Filter:</span>
+          <div className="flex gap-1">
             {(['ALL', 'APPROVED', 'BLOCKED'] as const).map((mode) => (
               <button
                 key={mode}
                 onClick={() => setFilter(mode)}
-                className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
+                className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${
                   filter === mode
-                    ? 'bg-slate-800 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                 }`}
               >
                 {mode === 'ALL' ? `All (${traces.length})` : mode}
@@ -92,10 +116,13 @@ export const TraceLogTable: React.FC<TraceLogTableProps> = ({ traces, loading })
       </div>
 
       {/* Table Container */}
-      <div className="overflow-x-auto">
+      <div 
+        className="overflow-x-auto overflow-y-auto rounded-lg border border-slate-800/50 transition-all duration-300"
+        style={{ maxHeight: expandedTraceId ? `calc(260px + ${expandedHeight}px)` : '260px' }}
+      >
         <table className="w-full text-left text-xs text-slate-300 border-collapse">
-          <thead>
-            <tr className="border-b border-slate-800 bg-slate-950/60 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+          <thead className="sticky top-0 z-20 shadow-sm">
+            <tr className="border-b border-slate-800 bg-slate-900 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
               <th className="py-2.5 px-3">Trace / Time</th>
               <th className="py-2.5 px-3">Session &amp; Buyer</th>
               <th className="py-2.5 px-3">Status</th>
@@ -149,18 +176,18 @@ export const TraceLogTable: React.FC<TraceLogTableProps> = ({ traces, loading })
                       </td>
 
                       {/* Status */}
-                      <td className="py-3 px-3">
+                      <td className="py-4 px-4">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase border shadow-sm ${
                             isApproved
-                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                              : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-emerald-900/20'
+                              : 'bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-rose-900/20'
                           }`}
                         >
                           {isApproved ? (
-                            <CheckCircle className="w-3 h-3 text-emerald-400" />
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
                           ) : (
-                            <XCircle className="w-3 h-3 text-rose-400" />
+                            <XCircle className="w-3.5 h-3.5 text-rose-400" />
                           )}
                           {trace.evaluationStatus}
                         </span>
@@ -221,8 +248,8 @@ export const TraceLogTable: React.FC<TraceLogTableProps> = ({ traces, loading })
                       </td>
 
                       {/* Toggle button */}
-                      <td className="py-3 px-3 text-right">
-                        <button className="text-slate-400 hover:text-slate-200">
+                      <td className="py-4 px-4 text-right">
+                        <button className="text-slate-400 hover:text-slate-100 transition-colors bg-slate-800/50 hover:bg-slate-700/50 p-1.5 rounded-lg border border-slate-700/50">
                           {isExpanded ? (
                             <ChevronDown className="w-4 h-4" />
                           ) : (
@@ -234,42 +261,42 @@ export const TraceLogTable: React.FC<TraceLogTableProps> = ({ traces, loading })
 
                     {/* Expanded Detail Row */}
                     {isExpanded && (
-                      <tr className="bg-slate-950/80">
-                        <td colSpan={9} className="p-4 border-b border-slate-800">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                      <tr className="bg-slate-900/50 border-b border-slate-800/50" ref={expandedRowRef}>
+                        <td colSpan={9} className="p-5">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
                             {/* Proposal Items & Growth Actions */}
-                            <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-3">
-                              <h5 className="font-semibold text-slate-200 mb-2 flex items-center gap-1.5">
-                                <Layers className="w-3.5 h-3.5 text-blue-400" />
+                            <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-4 shadow-inner">
+                              <h5 className="font-bold text-slate-200 mb-3 flex items-center gap-2 uppercase tracking-widest text-[10px]">
+                                <Layers className="w-4 h-4 text-blue-400" />
                                 Proposal Items &amp; Actions
                               </h5>
-                              <ul className="space-y-1.5 mb-3">
+                              <ul className="space-y-2 mb-4">
                                 {trace.proposal.items.map((item, idx) => (
                                   <li
                                     key={idx}
-                                    className="flex items-center justify-between text-[11px] bg-slate-950/50 px-2 py-1 rounded border border-slate-800/50"
+                                    className="flex items-center justify-between text-[11px] bg-slate-900 px-3 py-2 rounded-lg border border-slate-800/80"
                                   >
-                                    <span className="font-mono text-slate-300">
+                                    <span className="font-mono text-slate-300 font-semibold">
                                       {item.quantity}x {item.sku}
                                     </span>
-                                    <span className="text-slate-400">
-                                      Proposed: {formatCurrency(item.proposedUnitPrice)} / unit
+                                    <span className="text-slate-400 font-mono">
+                                      Proposed: <span className="text-slate-200">₹{item.proposedUnitPrice.toLocaleString('en-IN')}</span> / unit
                                     </span>
                                   </li>
                                 ))}
                               </ul>
 
                               {trace.growthActions.length > 0 && (
-                                <div className="flex items-center gap-1.5">
-                                  <Sparkles className="w-3 h-3 text-amber-400" />
-                                  <span className="text-[11px] text-slate-400">Applied Growth Actions:</span>
-                                  <div className="flex gap-1">
+                                <div className="flex items-center gap-2 bg-amber-500/5 p-2 rounded-lg border border-amber-500/10">
+                                  <Sparkles className="w-4 h-4 text-amber-400" />
+                                  <span className="text-[11px] text-slate-400 font-medium">Applied Actions:</span>
+                                  <div className="flex gap-1.5">
                                     {trace.growthActions.map((action, i) => (
                                       <span
                                         key={i}
-                                        className="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-1.5 py-0.5 rounded font-mono"
+                                        className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-md font-mono font-bold uppercase tracking-wider shadow-sm"
                                       >
-                                        {action}
+                                        {action.replace('_', ' ')}
                                       </span>
                                     ))}
                                   </div>
@@ -278,9 +305,9 @@ export const TraceLogTable: React.FC<TraceLogTableProps> = ({ traces, loading })
                             </div>
 
                             {/* Checks & Reasons */}
-                            <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-3">
-                              <h5 className="font-semibold text-slate-200 mb-2 flex items-center gap-1.5">
-                                <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                            <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-4 shadow-inner">
+                              <h5 className="font-bold text-slate-200 mb-3 flex items-center gap-2 uppercase tracking-widest text-[10px]">
+                                <Shield className="w-4 h-4 text-emerald-400" />
                                 Policy Evaluation Details
                               </h5>
 

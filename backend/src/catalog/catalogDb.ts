@@ -35,6 +35,10 @@ class CatalogDatabase {
     this.activeCatalogId = catalogId;
   }
 
+  public getCatalogIds(): string[] {
+    return Array.from(this.catalogs.keys());
+  }
+
   public getProduct(sku: string, catalogId: string = this.activeCatalogId): Product | undefined {
     const catalog = this.catalogs.get(catalogId);
     if (!catalog) return undefined;
@@ -51,6 +55,14 @@ class CatalogDatabase {
     const catalog = this.catalogs.get(catalogId);
     if (!catalog) return [];
     return catalog.map(p => sanitizeProduct(p));
+  }
+
+  public getAllPublicProductsAcrossCatalogs(): PublicProduct[] {
+    const all: PublicProduct[] = [];
+    for (const catalogId of this.catalogs.keys()) {
+      all.push(...this.getPublicCatalog(catalogId));
+    }
+    return all;
   }
 
   public getAllProducts(catalogId: string = this.activeCatalogId): Product[] {

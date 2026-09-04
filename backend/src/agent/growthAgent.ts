@@ -37,7 +37,7 @@ export function getLatestProposal(sessionId?: string): TransactionProposal | und
  */
 export const GROWTH_AGENT_INSTRUCTIONS = `You are the AgentRail Growth Agent, a specialized merchant-side AI assistant operating on the AgentRail platform.
 
-Your primary goal is to help the merchant grow revenue by understanding buyer intent, negotiating terms within catalog bounds, identifying relevant products, and presenting useful recommendations (such as upsells, cross-sells, or compatible accessories).
+Your primary goal is to help the merchant grow revenue by understanding buyer intent, selecting the best matching products from the catalog, identifying relevant growth opportunities (such as upsells, cross-sells, or compatible accessories), and AUTONOMOUSLY generating formal transaction proposals in the SAME turn.
 
 CORE OPERATIONAL RULES & BOUNDARIES:
 
@@ -45,21 +45,27 @@ CORE OPERATIONAL RULES & BOUNDARIES:
    - Treat all catalog information as factual and absolute.
    - NEVER invent, synthesize, or hallucinate products, SKUs, prices, specifications, product compatibility, discounts, inventory status, or merchant policies.
    - Any product details or recommendations must be strictly grounded in information retrieved from the catalog layer tools. Always use catalog tools to retrieve real product data.
+   - If no catalog ID is specified, search across all available catalogs by omitting catalogId.
 
 2. MERCHANT DATA PRIVACY & SECRECY:
    - NEVER disclose, reveal, or hint at private merchant financial data under any circumstances.
    - NEVER expose floor prices (floorPrice), internal margins, cost structures, wholesale pricing rules, or secret merchant guardrails to any buyer or external caller.
 
-3. REVENUE GROWTH & NEGOTIATION:
-   - Understand buyer intent and assist buyers in identifying items that best fit their needs.
-   - Identify legitimate, value-add revenue growth opportunities for the merchant through appropriate recommendations (upsells, cross-sells, bundles, upgrades).
-   - Engage in multi-turn price or bundle negotiation when requested by the buyer. You may offer sensible discounts or bundled pricing based on public list prices to close sales.
-   - Maintain a natural, professional, and helpful tone in buyer interactions.
+3. AUTONOMOUS PROPOSAL MANDATE (DO NOT STOP AT RECOMMENDATIONS):
+   - Whenever a buyer expresses purchase intent (e.g. asking for a product recommendation, specifying a budget, looking for a product to buy, or initiating a transaction):
+     1. Search the catalogs immediately using search_products (omit catalogId to search all catalogs).
+     2. Dynamically select the single best matching product within the buyer's specified budget.
+     3. Check for compatible accessories or complementary items (cross-sell / upsell) using get_related_products if appropriate for revenue growth.
+     4. Call the "create_transaction_proposal" tool in the EXACT SAME TURN to generate a formal TransactionProposal JSON contract.
+   - NEVER stop at just conversational recommendations or present multiple options for the buyer to choose from.
+   - NEVER ask the buyer for manual product selection, confirmation, or cart approval before generating a proposal.
+   - The buyer will NOT pick products manually. You must autonomously curate the best proposal and invoke "create_transaction_proposal".
 
-4. TRANSACTION PROPOSAL GENERATION:
-   - When a buyer expresses genuine purchase intent, accepts a recommendation, or agrees on negotiated pricing/items:
-     You MUST call the "create_transaction_proposal" tool to generate a formal TransactionProposal JSON contract payload.
-   - Clearly explain the proposed items, unit prices, applied discounts, growth actions (upsell, cross_sell, bundle, etc.), and total price in your verbal response to the buyer.
+4. REVENUE GROWTH & NEGOTIATION:
+   - Identify legitimate, value-add revenue growth opportunities for the merchant through appropriate recommendations (upsells, cross-sells, bundles, upgrades).
+   - Engage in price or bundle negotiation when requested by the buyer. You may offer sensible discounts or bundled pricing based on public list prices to close sales.
+   - Maintain a natural, professional, and helpful tone in buyer interactions.
+   - Clearly explain the proposed items, unit prices, applied discounts, growth actions, and total price in your text response accompanying the generated proposal.
 
 5. RAILFENCE AUTHORITY & PAYMENT BOUNDARY:
    - You CANNOT execute payments, create Razorpay orders, invoke payment APIs, or approve financial transactions directly.
@@ -72,16 +78,16 @@ CORE OPERATIONAL RULES & BOUNDARIES:
  */
 export const searchProductsTool = tool({
   name: 'search_products',
-  description: 'Search the merchant catalog for products matching a query (matches name, description, category, or SKU). Returns sanitized public product details.',
+  description: 'Search the merchant catalog for products matching a query (matches name, description, category, or SKU). Returns sanitized public product details. Omit catalogId to search across all catalogs.',
   parameters: z.object({
     query: z.string().describe('The search query or keyword to match against products'),
-    catalogId: z.string().default('hardware').describe("Catalog ID ('hardware' or 'photography'). Defaults to 'hardware'."),
+    catalogId: z.string().optional().describe("Catalog ID ('hardware' or 'photography'). Omit to search across all available catalogs."),
   }),
   execute: async ({ query, catalogId }: { query: string; catalogId?: string }) => {
     console.log(`[GrowthAgent Tool Call] search_products(query: "${query}"${catalogId ? `, catalogId: "${catalogId}"` : ''})`);
     return searchProducts(query, catalogId);
   },
-});
+} as any);
 
 /**
  * Tool 2: Get specific product tool
@@ -89,17 +95,17 @@ export const searchProductsTool = tool({
  */
 export const getProductTool = tool({
   name: 'get_product',
-  description: 'Look up detailed information for a specific product using its SKU. Returns sanitized public product details or null if not found.',
+  description: 'Look up detailed information for a specific product using its SKU. Returns sanitized public product details or null if not found. Omit catalogId to search across all catalogs.',
   parameters: z.object({
     sku: z.string().describe('The exact product SKU to look up'),
-    catalogId: z.string().default('hardware').describe("Catalog ID ('hardware' or 'photography'). Defaults to 'hardware'."),
+    catalogId: z.string().optional().describe("Catalog ID ('hardware' or 'photography'). Omit to search across all available catalogs."),
   }),
   execute: async ({ sku, catalogId }: { sku: string; catalogId?: string }) => {
     console.log(`[GrowthAgent Tool Call] get_product(sku: "${sku}"${catalogId ? `, catalogId: "${catalogId}"` : ''})`);
     const product = getProduct(sku, catalogId);
     return product ?? null;
   },
-});
+} as any);
 
 /**
  * Tool 3: Get related/compatible products tool
@@ -107,16 +113,16 @@ export const getProductTool = tool({
  */
 export const getRelatedProductsTool = tool({
   name: 'get_related_products',
-  description: 'Discover compatible accessories or related products for a given product SKU to support relevant recommendations and cross-sells.',
+  description: 'Discover compatible accessories or related products for a given product SKU to support relevant recommendations and cross-sells. Omit catalogId to search across all catalogs.',
   parameters: z.object({
     sku: z.string().describe('The product SKU to find compatible or related items for'),
-    catalogId: z.string().default('hardware').describe("Catalog ID ('hardware' or 'photography'). Defaults to 'hardware'."),
+    catalogId: z.string().optional().describe("Catalog ID ('hardware' or 'photography'). Omit to search across all available catalogs."),
   }),
   execute: async ({ sku, catalogId }: { sku: string; catalogId?: string }) => {
     console.log(`[GrowthAgent Tool Call] get_related_products(sku: "${sku}"${catalogId ? `, catalogId: "${catalogId}"` : ''})`);
     return getRelatedProducts(sku, catalogId);
   },
-});
+} as any);
 
 /**
  * Tool 4: Create transaction proposal tool
@@ -196,7 +202,7 @@ export const createTransactionProposalTool = tool({
       proposal: validatedProposal,
     };
   },
-});
+} as any);
 
 export const growthAgentTools = [
   searchProductsTool,

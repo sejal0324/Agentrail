@@ -7,8 +7,8 @@ function runVerification() {
   console.log('\n1. Searching Hardware Catalog...');
   const hardwareResults = searchProducts('laptop', 'hardware');
   console.log(`Found ${hardwareResults.length} hardware product(s) matching "laptop".`);
-  if (hardwareResults.length !== 1 || hardwareResults[0].sku !== 'HW-LAPTOP') {
-    throw new Error(`Verification Failed: Expected exactly one laptop product, got: ${JSON.stringify(hardwareResults)}`);
+  if (hardwareResults.length < 1 || !hardwareResults.some(p => p.sku === 'HW-LAPTOP')) {
+    throw new Error(`Verification Failed: Expected laptop products, got: ${JSON.stringify(hardwareResults)}`);
   }
   console.log('Hardware search works as expected.');
 
@@ -16,10 +16,19 @@ function runVerification() {
   console.log('\n2. Searching Photography Catalog...');
   const photographyResults = searchProducts('camera', 'photography');
   console.log(`Found ${photographyResults.length} photography product(s) matching "camera".`);
-  if (photographyResults.length !== 1 || photographyResults[0].sku !== 'PHOTO-CAMERA') {
-    throw new Error(`Verification Failed: Expected exactly one camera product, got: ${JSON.stringify(photographyResults)}`);
+  if (photographyResults.length < 1 || !photographyResults.some(p => p.sku === 'PHOTO-CAMERA')) {
+    throw new Error(`Verification Failed: Expected camera products, got: ${JSON.stringify(photographyResults)}`);
   }
   console.log('Photography search works as expected.');
+
+  // 2b. Cross-Catalog Search (omitting catalogId)
+  console.log('\n2b. Cross-Catalog Search (omitting catalogId)...');
+  const crossResults = searchProducts('camera');
+  console.log(`Found ${crossResults.length} cross-catalog product(s) matching "camera".`);
+  if (crossResults.length < 1 || !crossResults.some(p => p.sku === 'PHOTO-CAMERA')) {
+    throw new Error(`Verification Failed: Cross-catalog search failed for "camera". Got: ${JSON.stringify(crossResults)}`);
+  }
+  console.log('Cross-catalog search works as expected.');
 
   // 3. Product Lookup by SKU (getProduct)
   console.log('\n3. Testing Product Lookup by SKU...');

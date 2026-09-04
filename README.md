@@ -111,12 +111,48 @@ npm run dev
 - Frontend: `http://localhost:5173`
 - Backend: `http://localhost:3000`
 
-### Production Docker Setup
-```bash
-docker compose up --build -d
+## Run with Docker
+
+Prerequisites:
+- Docker
+- Docker Compose
+
+Environment Setup:
+Create a `.env` file in the root directory with your credentials:
+```env
+GROQ_API_KEY=your_groq_api_key_here
+RAZORPAY_KEY_ID=your_razorpay_test_key_id
+RAZORPAY_KEY_SECRET=your_razorpay_test_secret
 ```
-- Frontend: `http://localhost:8080`
-- Backend: `http://localhost:3000`
+
+### Start the Application
+To ensure a clean start, run the following commands (you may need `sudo` depending on your Docker setup):
+
+```bash
+# Optional: Stop and remove old containers and volumes
+docker compose down -v
+
+# Build the images without cache to ensure latest changes
+docker compose build --no-cache
+
+# Start the containers in detached mode
+docker compose up -d
+```
+
+### Access the Application
+- **Frontend / Dashboard**: [http://localhost:8080](http://localhost:8080)
+- **Backend API**: `http://localhost:8080/api/...`
+
+### View Logs and Stop
+To check the logs:
+```bash
+docker compose logs -f
+```
+
+To stop the containers:
+```bash
+docker compose down
+```
 
 ## Repository Structure
 

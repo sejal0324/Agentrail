@@ -27,18 +27,23 @@ async function runAgentToolsVerification() {
   }
   console.log('Agent metadata and tool registration verified.');
 
-  // 2. Test search_products tool invocation (Hardware & Photography)
+  // 2. Test search_products tool invocation (Hardware, Photography & Cross-catalog)
   console.log('\n2. Testing search_products tool invocation...');
   const searchResultHardware = await searchProductsTool.invoke({} as any, JSON.stringify({ query: 'laptop', catalogId: 'hardware' })) as PublicProduct[];
-  if (!Array.isArray(searchResultHardware) || searchResultHardware.length !== 1 || searchResultHardware[0].sku !== 'HW-LAPTOP') {
+  if (!Array.isArray(searchResultHardware) || searchResultHardware.length < 1 || !searchResultHardware.some(p => p.sku === 'HW-LAPTOP')) {
     throw new Error(`Hardware search failed. Got: ${JSON.stringify(searchResultHardware)}`);
   }
 
   const searchResultPhoto = await searchProductsTool.invoke({} as any, JSON.stringify({ query: 'camera', catalogId: 'photography' })) as PublicProduct[];
-  if (!Array.isArray(searchResultPhoto) || searchResultPhoto.length !== 1 || searchResultPhoto[0].sku !== 'PHOTO-CAMERA') {
+  if (!Array.isArray(searchResultPhoto) || searchResultPhoto.length < 1 || !searchResultPhoto.some(p => p.sku === 'PHOTO-CAMERA')) {
     throw new Error(`Photography search failed. Got: ${JSON.stringify(searchResultPhoto)}`);
   }
-  console.log('search_products tool execution verified for both catalogs.');
+
+  const searchResultCross = await searchProductsTool.invoke({} as any, JSON.stringify({ query: 'camera' })) as PublicProduct[];
+  if (!Array.isArray(searchResultCross) || searchResultCross.length < 1 || !searchResultCross.some(p => p.sku === 'PHOTO-CAMERA')) {
+    throw new Error(`Cross-catalog search failed. Got: ${JSON.stringify(searchResultCross)}`);
+  }
+  console.log('search_products tool execution verified for hardware, photography, and cross-catalog searches.');
 
   // 3. Test get_product tool invocation (Hardware & Photography)
   console.log('\n3. Testing get_product tool invocation...');

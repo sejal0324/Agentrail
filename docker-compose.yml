@@ -8,18 +8,24 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
-      - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
+      - NODE_ENV=production
+      - PORT=3000
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID:-}
+      - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET:-}
+    volumes:
+      - agentrail_traces:/app/data/traces
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        # Pass the backend URL at build-time for the Vite frontend
-        - VITE_API_BASE_URL=http://localhost:3000
     ports:
       - "8080:80"
     depends_on:
       - backend
+
+volumes:
+  agentrail_traces:
+

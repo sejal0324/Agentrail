@@ -18,6 +18,8 @@ out/
 .env.test.local
 .env.production.local
 *.env
+.env.save
+*.env.*
 
 # Debug & Telemetry logs
 logs

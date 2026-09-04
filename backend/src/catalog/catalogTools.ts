@@ -2,13 +2,14 @@ import { catalogDb } from './catalogDb.js';
 import { PublicProduct } from './catalogTypes.js';
 
 /**
- * Searches the selected catalog for products matching the query.
+ * Searches the selected catalog (or all catalogs if catalogId is omitted) for products matching the query.
  * Matches against name, description, category, and SKU (case-insensitive).
  * Returns ONLY sanitized PublicProduct objects (never exposes floorPrice).
  */
 export function searchProducts(query: string, catalogId?: string): PublicProduct[] {
-  const activeCatalogId = catalogId || catalogDb.getActiveCatalogId();
-  const allPublicProducts = catalogDb.getPublicCatalog(activeCatalogId);
+  const allPublicProducts = (catalogId && catalogId.trim() !== '')
+    ? catalogDb.getPublicCatalog(catalogId)
+    : catalogDb.getAllPublicProductsAcrossCatalogs();
 
   if (!query || query.trim() === '') {
     return allPublicProducts;
@@ -27,12 +28,18 @@ export function searchProducts(query: string, catalogId?: string): PublicProduct
 }
 
 /**
- * Retrieves a specific product by SKU from the selected catalog.
+ * Retrieves a specific product by SKU from the selected catalog (or across all catalogs if catalogId is omitted).
  * Returns ONLY the public/sanitized product representation or undefined if not found.
  */
 export function getProduct(sku: string, catalogId?: string): PublicProduct | undefined {
-  const activeCatalogId = catalogId || catalogDb.getActiveCatalogId();
-  return catalogDb.getPublicProduct(sku, activeCatalogId);
+  if (catalogId && catalogId.trim() !== '') {
+    return catalogDb.getPublicProduct(sku, catalogId);
+  }
+  for (const catId of catalogDb.getCatalogIds()) {
+    const product = catalogDb.getPublicProduct(sku, catId);
+    if (product) return product;
+  }
+  return undefined;
 }
 
 /**
@@ -41,7 +48,17 @@ export function getProduct(sku: string, catalogId?: string): PublicProduct | und
  * If the SKU is unknown, returns an empty array.
  */
 export function getRelatedProducts(sku: string, catalogId?: string): PublicProduct[] {
-  const activeCatalogId = catalogId || catalogDb.getActiveCatalogId();
+  let targetCatalogId = catalogId;
+  if (!targetCatalogId || targetCatalogId.trim() === '') {
+    for (const catId of catalogDb.getCatalogIds()) {
+      if (catalogDb.getProduct(sku, catId)) {
+        targetCatalogId = catId;
+        break;
+      }
+    }
+  }
+
+  const activeCatalogId = targetCatalogId || catalogDb.getActiveCatalogId();
   const product = catalogDb.getProduct(sku, activeCatalogId);
   if (!product) {
     return [];
@@ -57,7 +74,7 @@ export function getRelatedProducts(sku: string, catalogId?: string): PublicProdu
 
   const results: PublicProduct[] = [];
   for (const relatedSku of relatedSkus) {
-    const relatedProduct = catalogDb.getPublicProduct(relatedSku, activeCatalogId);
+    const relatedProduct = getProduct(relatedSku, targetCatalogId);
     if (relatedProduct) {
       results.push(relatedProduct);
     }
