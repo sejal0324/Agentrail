@@ -1,21 +1,36 @@
 # AgentRail
 
-AgentRail is a merchant-side AI Growth Agent for agentic commerce designed to safely automate sales and negotiations. It empowers merchants to use advanced LLMs to recommend products and negotiate deals while strictly enforcing deterministic financial boundaries before any payment is executed.
+AgentRail is a merchant-side AI Growth Agent for agentic commerce. It understands buyer intent, discovers products, identifies legitimate upsell and cross-sell opportunities, and autonomously builds transaction proposals. A deterministic RailFence policy boundary then validates those proposals against merchant-defined financial rules before any Razorpay Test Mode order is created.
 
 ## The Problem
 
-AI buyer agents can understand intent, search catalogs, and negotiate naturally, but giving a non-deterministic Large Language Model (LLM) direct authority over financial transactions creates immense risk. A growth agent might hallucinate incorrect pricing, offer unauthorized discounts, or attempt to sell items below cost. The merchant needs the intelligence of an AI to drive sales, but requires deterministic control over what can actually become a finalized transaction.
+Agentic commerce allows AI agents to understand buyer intent, discover products, recommend complementary products, negotiate, and prepare purchases.
+
+For merchants, this creates an opportunity to use AI as an active sales layer rather than only as a chatbot or product search tool.
+
+The Growth Agent can increase transaction value through relevant upsells, cross-sells, bundles, upgrades, and negotiated offers.
+
+However, the LLM should not have authority to decide whether a financially meaningful proposal is acceptable to the merchant.
+
+The merchant therefore needs both:
+- AI-driven growth
+- deterministic financial control
 
 ## The Solution
 
-AgentRail solves this by separating AI reasoning from transaction authority. 
+AgentRail is a merchant-side AI Growth Agent for agentic commerce.
+
+The Growth Agent understands the buyer's intent, searches the real catalog, selects relevant products, identifies legitimate growth opportunities, negotiates where appropriate, and autonomously creates a structured Transaction Proposal.
+
+The buyer does not need to manually construct the cart in this flow.
+
+The Growth Agent does not have financial authority.
+
+Its proposal is passed to RailFence, which deterministically validates it against merchant-configured boundaries and private floor-price protection.
+
+Only approved proposals reach Razorpay Test Mode.
 
 **AI proposes. RailFence decides. Razorpay executes only after approval.**
-
-The system is split into distinct layers:
-- The **Growth Agent** handles conversation, intent understanding, and proposal generation.
-- **RailFence** acts as a deterministic policy boundary that evaluates proposals against merchant rules.
-- **Razorpay** (in Test Mode) is only ever called if RailFence explicitly approves the transaction.
 
 ## How AgentRail Works
 
@@ -87,33 +102,68 @@ Records the outcome of every decision, providing full explainability. Traces are
 ### 8. Merchant Policy Administration
 A dashboard interface allowing the merchant to configure limits (discount caps, session velocity). Floor-price protection remains private and cannot be disabled or modified through the public policy interface.
 
+## How the Growth Agent Creates Revenue Uplift
+
+The Growth Agent is not simply a product recommender.
+
+It actively looks for legitimate opportunities to increase transaction value while remaining aligned with the buyer's original intent.
+
+- Understand the buyer's primary intent.
+- Search the real catalog.
+- Select suitable products.
+- Identify related products.
+- Recommend relevant upgrades.
+- Identify cross-sell opportunities.
+- Construct relevant bundles.
+- Negotiate within the proposal it generates.
+- Convert the result into a structured Transaction Proposal.
+
+Growth actions are represented in the proposal/decision trace.
+
+Growth uplift is calculated deterministically from transaction data rather than being claimed by the LLM.
+
+> Find legitimate ways to grow the transaction without losing relevance to the buyer.
+
+RailFence provides the independent financial boundary around that autonomous growth behavior.
+
 ## End-to-End Transaction Flow
 
-1. Buyer gives a natural-language request (e.g., "I need a portrait camera setup within 200000").
-2. Growth Agent interprets intent.
-3. Growth Agent searches the real catalog using catalog tools.
-4. Growth Agent selects relevant products and identifies a legitimate growth opportunity.
-5. Growth Agent autonomously creates a structured Transaction Proposal in the same turn (the buyer does not manually construct a cart).
-6. RailFence validates the proposal deterministically against merchant limits and private floor prices.
-7. If approved, a SHA-256 contract hash is generated.
-8. Razorpay Test Mode creates the order with the contract hash attached.
-9. The decision is recorded in telemetry.
-10. If blocked, the process stops before Razorpay and the reason is recorded.
+1. Buyer gives a natural-language request.
+2. Growth Agent understands the buyer's primary intent.
+3. Growth Agent searches the real catalog.
+4. Growth Agent evaluates suitable products and related opportunities.
+5. Growth Agent identifies relevant upsell, cross-sell, bundle, or upgrade opportunities.
+6. Growth Agent autonomously creates a structured Transaction Proposal.
+7. RailFence deterministically validates the proposal against merchant policies and private floor-price protection.
+8. If approved, a SHA-256 contract hash is generated and the transaction proceeds to Razorpay Test Mode.
+9. Growth uplift, policy checks, payment activity, and the final decision are recorded in telemetry.
+10. If blocked, the transaction stops before Razorpay and the enforcement reason is recorded.
 
 ## Why RailFence Matters
 
-The key design principle of AgentRail is: **The LLM is responsible for reasoning and recommendations, while deterministic code is responsible for financial enforcement.**
+The Growth Agent is intentionally given autonomy over reasoning and sales recommendations.
+
+RailFence is intentionally given authority over financial enforcement.
+
+The Growth Agent answers:
+"What would be a good transaction for this buyer?"
+
+RailFence answers:
+"Is this transaction allowed under the merchant's rules?"
 
 | Responsibility | Growth Agent | RailFence |
-| :--- | :--- | :--- |
+|---|---|---|
 | Intent understanding | Yes | No |
-| Product discovery & Catalog search | Yes | No |
-| Identifying growth opportunities | Yes | No |
-| Generating a transaction proposal | Yes | No |
+| Product discovery | Yes | No |
+| Product recommendation | Yes | No |
+| Growth opportunity identification | Yes | No |
+| Upsell / cross-sell / bundle / upgrade reasoning | Yes | No |
+| Negotiation / proposal generation | Yes | No |
 | Policy enforcement | No | Yes |
 | Floor-price protection | No | Yes |
 | Discount validation | No | Yes |
-| Session limits enforcement | No | Yes |
+| Session-limit enforcement | No | Yes |
+| Transaction amount validation | No | Yes |
 | Payment authorization boundary | No | Yes |
 
 *Note: Razorpay order creation is handled by the backend after RailFence approval.*
@@ -135,18 +185,24 @@ Implemented RailFence error reasons include:
 
 ## Explainability and Merchant Control
 
-Through the AgentRail dashboard, merchants have complete visibility and control. They can monitor:
-- Average Order Value (AOV)
-- Growth uplift
-- Agent actions (upsells, cross-sells)
+The dashboard lets the merchant observe what the Growth Agent attempted, what value it created, and whether RailFence allowed the resulting transaction to proceed.
+
+The merchant should be able to see:
+- AOV
+- growth uplift amount and percentage
+- agent actions
+- policy violations
+- approved/blocked transactions
 - Razorpay activity
-- Policy violations and blocked transactions
-- Transaction outcomes and negotiation timing
-- Decision traces and contract hashes
+- negotiation timing
+- decision traces
+- contract hashes
 
 Merchants can configure policy limits dynamically through the dashboard. Floor-price protection remains securely locked on the server side.
 
 ## Security and Data Boundaries
+
+These safeguards act as the control layer that makes autonomous AI growth safe.
 
 - **Floor prices remain server-side**: Private merchant data is never exposed to the client, the LLM, or the frontend.
 - **Secrets remain backend-only**: API keys and Razorpay credentials are never exposed.
