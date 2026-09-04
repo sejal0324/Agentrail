@@ -1,0 +1,8 @@
+.env
+.env.*
+.env.save
+node_modules
+dist
+*.log
+.git
+.gitignore
