@@ -24,33 +24,24 @@ Razorpay Test Mode is reached only after RailFence explicitly approves the trans
 
 ```mermaid
 flowchart TD
-    B[Buyer] --> Dash[AgentRail Dashboard / Buyer Agent Terminal]
-    Dash --> API[POST /api/chat]
+    B[Buyer] --> UI[AgentRail Dashboard /<br/>Buyer Agent Terminal]
+    UI --> API[POST /api/chat]
+    API --> GA[Growth Agent]
 
-    subgraph AI [AI Reasoning]
-        API --> GA[Growth Agent]
-        GA <--> CT[Catalog Tools]
-        GA --> TP[Transaction Proposal]
-    end
+    GA --> CT[Catalog Tools]
+    GA --> TP[Transaction Proposal]
 
-    subgraph Boundary [Deterministic Policy Boundary]
-        TP --> RF[RailFence]
-        RF -->|APPROVED| AC[Approved Contract]
-        RF -->|BLOCKED| BL[Block + Reason]
-    end
+    TP --> RF[RailFence]
 
-    subgraph Execution [Payment Execution]
-        AC --> RP[Razorpay Test Mode]
-    end
+    RF -->|APPROVED| RP[Razorpay Test Mode]
+    RF -->|BLOCKED| BL[Block + Reason]
 
-    subgraph Observability [Observability]
-        RP --> TR[Decision Trace]
-        BL --> TR
-        TR --> TM[Metrics / Telemetry]
-        TM --> MD[Merchant Dashboard]
-    end
+    RP --> TR[Decision Trace]
+    BL --> TR
 
-    GA -.->|NO DIRECT PAYMENT ACCESS| RP
+    TR --> TM[Metrics / Telemetry]
+
+    TM --> UI
 ```
 
 ## End-to-End Transaction Flow
