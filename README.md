@@ -1,198 +1,305 @@
 # AgentRail
 
-AgentRail is a merchant-side AI Growth Agent system that identifies upsell and bundle opportunities during buyer interactions while placing all transaction execution behind a deterministic policy boundary.
+AgentRail is a merchant-side AI Growth Agent for agentic commerce designed to safely automate sales and negotiations. It empowers merchants to use advanced LLMs to recommend products and negotiate deals while strictly enforcing deterministic financial boundaries before any payment is executed.
 
-## Overview
+## The Problem
 
-In agentic commerce, AI buyer agents interact directly with merchant interfaces to negotiate and purchase goods. While generative LLMs excel at understanding natural language buyer intent, engaging in conversational sales, and discovering growth opportunities, allowing non-deterministic AI models to execute financial transactions or approve pricing directly presents significant financial risks, such as loss-making discounts, unauthorized price overrides, or runaway agent sessions.
+AI buyer agents can understand intent, search catalogs, and negotiate naturally, but giving a non-deterministic Large Language Model (LLM) direct authority over financial transactions creates immense risk. A growth agent might hallucinate incorrect pricing, offer unauthorized discounts, or attempt to sell items below cost. The merchant needs the intelligence of an AI to drive sales, but requires deterministic control over what can actually become a finalized transaction.
 
-AgentRail solves this by strictly separating non-deterministic LLM reasoning from deterministic transaction execution:
-- The **Growth Agent** reasons about buyer intent using natural language, explores product catalogs, and constructs structured **Transaction Proposals** (including recommended items, volume discounts, or bundles).
-- The agent **cannot** directly execute payments, invoke payment gateways, or make policy decisions.
-- The **RailFence Policy Engine** receives the proposed JSON transaction contract and deterministically evaluates it against strict merchant guardrails (maximum discount thresholds, floor price margin protection, and session velocity limits).
-- If **APPROVED**, the backend issues a deterministic SHA-256 contract hash and creates a test order via the Razorpay SDK (in test mode).
-- If **BLOCKED**, payment execution is completely bypassed (zero Razorpay SDK calls), and the block reason is recorded into an immutable decision trace.
+## The Solution
 
-## Key Features
+AgentRail solves this by separating AI reasoning from transaction authority. 
 
-- **LLM Growth Agent**: Analyzes buyer prompts and catalog relationships to identify upsell, cross-sell, and bundle opportunities using natural language processing via an OpenAI-compatible API (Groq).
-- **RailFence Policy Engine**: A deterministic policy engine that enforces non-negotiable financial guardrails (margin protection, max discount rates, single-session velocity caps).
-- **Deterministic Contract Hashing**: SHA-256 hash generation over canonical proposal parameters attached directly to payment order metadata for end-to-end contract validation.
-- **Payment Safety Boundary**: Enforces zero payment SDK calls unless a proposal is explicitly approved by RailFence. AgentRail operates strictly in Razorpay Test Mode to generate test orders; no live financial or customer payment transactions are processed. Payment credentials and order creation reside strictly on the backend.
-- **Zero-Leakage Architecture**: Internal floor prices, cost bases, and margin calculations are strictly isolated on the server. Public API responses, telemetry endpoints, and frontend traces are automatically sanitized.
-- **Decision Tracing & Telemetry**: Immutable JSON-backed decision logs capturing execution timestamps, negotiation duration, policy check details, and calculated metrics (AOV, growth uplift, block distribution).
-- **Interactive Dashboard UI**: Dual-panel React/Tailwind frontend featuring a real-time Buyer Agent Terminal and a Telemetry Dashboard for live decision trace analysis and policy administration.
+**AI proposes. RailFence decides. Razorpay executes only after approval.**
 
-## System Architecture
+The system is split into distinct layers:
+- The **Growth Agent** handles conversation, intent understanding, and proposal generation.
+- **RailFence** acts as a deterministic policy boundary that evaluates proposals against merchant rules.
+- **Razorpay** (in Test Mode) is only ever called if RailFence explicitly approves the transaction.
+
+## How AgentRail Works
 
 ```mermaid
 flowchart TD
-    B[Buyer] --> UI[AgentRail Dashboard / Buyer Agent Terminal]
-    UI --> API[POST /api/chat]
-    API --> GA[Growth Agent]
-    GA --> CT[Catalog Tools]
-    GA --> TP[Transaction Proposal]
-    TP --> RF[RailFence]
-    RF -->|APPROVED| RP[Razorpay Test Mode]
-    RF -->|BLOCKED| BL[Block + Reason]
-    RP --> TR[Decision Trace]
-    BL --> TR
-    TR --> TM[Metrics / Telemetry]
-    TM --> UI
+    subgraph UI [Buyer / UI]
+        B[Buyer] --> Dash[AgentRail Dashboard / Buyer Agent Terminal]
+    end
+
+    Dash --> API[POST /api/chat]
+
+    subgraph AI [AI Reasoning]
+        API --> GA[Growth Agent]
+        GA <--> CT[Catalog Tools]
+        GA --> TP[Transaction Proposal]
+    end
+
+    subgraph Boundary [Deterministic Policy Boundary]
+        TP --> RF[RailFence]
+        RF -->|BLOCKED| Block[Block + Reason]
+        RF -->|APPROVED| Appr[Approved Contract]
+    end
+
+    subgraph Execution [Payment Execution]
+        Appr --> RP[Razorpay Test Mode]
+    end
+
+    subgraph Observability [Observability]
+        Block --> TR[Decision Trace]
+        RP --> TR
+        TR --> TM[Metrics / Telemetry]
+        TM --> MD[Merchant Dashboard]
+    end
+
+    %% Ensure it's visually obvious GA cannot bypass RF
+    GA -.-x RP
 ```
 
-### Component Breakdown
+## Architecture Explained
 
-1. **Buyer Agent Terminal (Frontend)**: Real-time chat panel where buyers interact with the Growth Agent. Displays conversational responses, generated proposal summaries, policy validation badges, and payment statuses.
-2. **Growth Agent (`backend/src/agent`)**: Configured with system instructions and custom catalog tools (`search_products`, `get_product_details`, `create_transaction_proposal`) to explore products and construct proposals without payment authority.
-3. **RailFence Policy Engine (`backend/src/gateway`)**: Pure TypeScript validation module checking proposals against configurable merchant rules:
-   - `MAX_DISCOUNT_PERCENT`: Cap on percentage discount per item/order.
-   - `MIN_MARGIN_PERCENT`: Protection against selling below merchant cost boundaries.
-   - `MAX_PROPOSALS_PER_SESSION`: Velocity restriction preventing automated negotiation spam.
-4. **Payment Gateway (`backend/src/payments`)**: Server-side Razorpay Test Mode integration. Creates test orders exclusively for approved proposals without processing live customer payments. Attaches the RailFence SHA-256 contract hash to order metadata for auditability.
-5. **Telemetry & Audit Engine (`backend/src/telemetry`)**: Computes real-time financial metrics (Average Order Value, Growth Uplift Percentage, Block Reason Distributions) from stored sanitized traces.
+### 1. Buyer Agent Terminal
+A real-time chat interface where buyers interact with the Growth Agent. It handles natural language input and renders the agent's responses along with structured proposal cards.
+
+### 2. Growth Agent
+The LLM-powered intelligence layer (built on OpenAI Agents SDK, currently configured for Groq). It understands buyer intent, searches the catalog, identifies legitimate growth opportunities (upsell, cross-sell, bundle, upgrade), and curates a structured proposal. It does **not** execute payments or make final policy decisions.
+
+### 3. Catalog Tools
+Deterministic functions (`search_products`, `get_product`, `get_related_products`) that the Growth Agent uses to retrieve factual product data. The agent is strictly grounded in this real catalog data.
+
+### 4. Transaction Proposal
+A structured JSON contract generated by the Growth Agent containing the selected SKUs, quantities, negotiated prices, applied discounts, and growth actions.
+
+### 5. RailFence
+The deterministic security boundary. It receives the Transaction Proposal and validates it against merchant-configured limits. If a proposal fails validation, it is blocked immediately before reaching the payment gateway.
+
+RailFence enforces the following actual policy boundaries:
+- **Maximum Discount**: `maxDiscountPercent`
+- **Maximum Transaction Amount**: `maxTransactionAmount`
+- **Maximum Orders Per Session**: `maxOrdersPerSession`
+- **Maximum Spend Per Session**: `maxSpendPerSession`
+- **Private Floor-Price Protection**: `strictFloorPriceCheck` (Ensures items are never sold below merchant cost). Floor prices are private merchant information and are never exposed to the Growth Agent, frontend, public API responses, or sanitized telemetry.
+
+### 6. Razorpay Test Mode
+The payment execution layer. It is called **only** after RailFence approval. It receives the approved transaction as a test order and attaches a SHA-256 deterministic contract hash to the order metadata. Blocked proposals result in zero Razorpay API calls.
+
+### 7. Decision Trace and Telemetry
+Records the outcome of every decision, providing full explainability. Traces are securely sanitized to prevent exposing private merchant floor prices or internal financial information.
+
+### 8. Merchant Policy Administration
+A dashboard interface allowing the merchant to configure limits (discount caps, session velocity). Floor-price protection remains private and cannot be disabled or modified through the public policy interface.
+
+## End-to-End Transaction Flow
+
+1. Buyer gives a natural-language request (e.g., "I need a portrait camera setup within 200000").
+2. Growth Agent interprets intent.
+3. Growth Agent searches the real catalog using catalog tools.
+4. Growth Agent selects relevant products and identifies a legitimate growth opportunity.
+5. Growth Agent autonomously creates a structured Transaction Proposal in the same turn (the buyer does not manually construct a cart).
+6. RailFence validates the proposal deterministically against merchant limits and private floor prices.
+7. If approved, a SHA-256 contract hash is generated.
+8. Razorpay Test Mode creates the order with the contract hash attached.
+9. The decision is recorded in telemetry.
+10. If blocked, the process stops before Razorpay and the reason is recorded.
+
+## Why RailFence Matters
+
+The key design principle of AgentRail is: **The LLM is responsible for reasoning and recommendations, while deterministic code is responsible for financial enforcement.**
+
+| Responsibility | Growth Agent | RailFence |
+| :--- | :--- | :--- |
+| Intent understanding | Yes | No |
+| Product discovery & Catalog search | Yes | No |
+| Identifying growth opportunities | Yes | No |
+| Generating a transaction proposal | Yes | No |
+| Policy enforcement | No | Yes |
+| Floor-price protection | No | Yes |
+| Discount validation | No | Yes |
+| Session limits enforcement | No | Yes |
+| Payment authorization boundary | No | Yes |
+
+*Note: Razorpay order creation is handled by the backend after RailFence approval.*
+
+## Failure Handling
+
+If a buyer requests a discount beyond the merchant's configured limit, the flow halts gracefully:
+
+Buyer request → Growth Agent creates proposal → RailFence detects violation → **BLOCKED** → Reason returned safely → Zero Razorpay SDK calls → Decision trace recorded.
+
+Implemented RailFence error reasons include:
+- `SCHEMA_VIOLATION`
+- `UNKNOWN_SKU`
+- `RECALCULATION_MISMATCH`
+- `FLOOR_PRICE_VIOLATION`
+- `DISCOUNT_LIMIT_EXCEEDED`
+- `TRANSACTION_AMOUNT_EXCEEDED`
+- `VELOCITY_LIMIT_EXCEEDED`
+
+## Explainability and Merchant Control
+
+Through the AgentRail dashboard, merchants have complete visibility and control. They can monitor:
+- Average Order Value (AOV)
+- Growth uplift
+- Agent actions (upsells, cross-sells)
+- Razorpay activity
+- Policy violations and blocked transactions
+- Transaction outcomes and negotiation timing
+- Decision traces and contract hashes
+
+Merchants can configure policy limits dynamically through the dashboard. Floor-price protection remains securely locked on the server side.
+
+## Security and Data Boundaries
+
+- **Floor prices remain server-side**: Private merchant data is never exposed to the client, the LLM, or the frontend.
+- **Secrets remain backend-only**: API keys and Razorpay credentials are never exposed.
+- **Traces are sanitized**: All telemetry data exposed to the frontend is scrubbed of sensitive information.
+- **Blocked proposals cannot call Razorpay**: The deterministic gateway prevents unauthorized API calls.
+- **Razorpay is Test Mode only**: The system is explicitly configured to use Razorpay test credentials.
+
+## API
+
+### `POST /api/chat`
+The primary entry point connecting the Buyer UI to the Growth Agent and RailFence pipeline.
+- **Request Body:** `{ "message": "string", "sessionId": "string", "buyerId": "string" }`
+- **Response (Approved):**
+  ```json
+  {
+    "success": true,
+    "text": "Agent's response message...",
+    "proposal": {
+      "transactionId": "...",
+      "sessionId": "...",
+      "items": [...],
+      "proposedDiscountPercent": 10,
+      "proposedTotal": 1500
+    },
+    "evaluation": {
+      "status": "APPROVED",
+      "transactionId": "...",
+      "contractHash": "...",
+      "reasons": [],
+      "checks": { "schemaValid": true, "skusValid": true, "mathValid": true, "floorPriceValid": true, "discountValid": true, "velocityValid": true }
+    },
+    "razorpayOrder": {
+      "id": "order_...",
+      "amount": 150000,
+      "status": "created"
+    },
+    "traceId": "..."
+  }
+  ```
+
+### `GET /api/policy`
+Exposes the active merchant-configured RailFence limits.
+- **Response:** `{ "success": true, "policy": { "maxDiscountPercent": 25, "maxTransactionAmount": 200000, "maxOrdersPerSession": 3, "maxSpendPerSession": 300000, "strictFloorPriceCheck": true } }`
+
+### `PUT /api/policy`
+Updates the active merchant policy limits.
+
+### `GET /api/metrics`
+Exposes aggregated growth telemetry metrics.
+
+### `GET /api/traces`
+Exposes sanitized historical decision traces for the dashboard audit log.
+
+### `GET /api/health`
+Returns backend health status.
 
 ## Repository Structure
 
 ```text
 agentrail/
 ├── backend/
-│   ├── data/              # Storage directory for decision traces
-│   ├── src/
-│   │   ├── agent/         # Growth Agent logic, tools, and execution runner
-│   │   ├── catalog/       # Product catalog dataset & in-memory database engine
-│   │   ├── gateway/       # RailFence Policy Engine & guardrail rules
-│   │   ├── payments/      # Razorpay test integration & contract hashing
-│   │   ├── routes/        # Express REST API routes (/api/chat, /metrics, /traces)
-│   │   ├── telemetry/     # Audit logging & metrics aggregation engine
-│   │   ├── config.ts      # Environment configuration loader
-│   │   └── server.ts      # Express application entry point
-│   ├── tests/             # Unit and integration test suite
-│   └── package.json
-├── frontend/
-│   ├── src/
-│   │   ├── components/    # ChatPanel, MetricsOverview, BlockDistribution, PolicyAdminView, TraceLogTable
-│   │   ├── hooks/         # Custom React hooks (useTelemetry)
-│   │   ├── types/         # TypeScript interface definitions
-│   │   ├── App.tsx        # Dashboard layout & dual-panel container
-│   │   └── main.tsx
+│   ├── Dockerfile
 │   ├── package.json
+│   ├── src/
+│   │   ├── agent/         # Growth Agent logic and tools
+│   │   ├── catalog/       # In-memory DB and catalog tools
+│   │   ├── gateway/       # RailFence deterministic policy engine
+│   │   ├── payments/      # Razorpay Test Mode integration
+│   │   ├── routes/        # Express REST API routes
+│   │   └── telemetry/     # Audit logging and metrics
+│   └── tests/             # Verification tests
+├── frontend/
+│   ├── Dockerfile
+│   ├── package.json
+│   ├── src/
+│   │   ├── components/    # React components (Dashboard, Terminal, Traces)
+│   │   └── index.css      # Tailwind styles
 │   └── vite.config.ts
-├── .gitignore
-├── package.json           # Monorepo root package configuration
-└── README.md
+├── docker-compose.yml
+└── package.json
 ```
 
-## API Specification
+## Tech Stack
 
-### 1. `POST /api/chat`
-Processes buyer input, invokes the Growth Agent, evaluates any resulting proposal against RailFence, and optionally triggers test payment order creation.
+- **Frontend**: React, TypeScript, Vite, Tailwind CSS
+- **Backend**: Node.js, Express, TypeScript, Zod
+- **AI/LLM**: OpenAI Agents SDK (configured with Groq via OpenAI-compatible API)
+- **Payments**: Razorpay Node.js SDK
+- **Telemetry**: JSON-backed in-memory storage
+- **Deployment**: Docker, Docker Compose
 
-**Request Body:**
-```json
-{
-  "message": "I'm looking for a professional camera setup for portrait photography.",
-  "sessionId": "sess_buyer_01",
-  "buyerId": "buyer_default"
-}
-```
-
-**Response (Approved Example):**
-```json
-{
-  "success": true,
-  "text": "I recommend the Lumix S5 II with the 85mm f/1.8 lens. I've put together a portrait bundle with a discount.",
-  "proposal": {
-    "proposalId": "prop_1725280000000",
-    "sessionId": "sess_buyer_01",
-    "buyerId": "buyer_default",
-    "items": [
-      {
-        "productId": "cam_lumix_s5ii",
-        "quantity": 1,
-        "proposedUnitPrice": 1799.99,
-        "discountPercent": 10
-      }
-    ],
-    "totalProposedPrice": 1619.99
-  },
-  "evaluation": {
-    "status": "APPROVED",
-    "contractHash": "a8f5f167f44f4964e6c998dee827110c...",
-    "policyChecks": [
-      { "rule": "MAX_DISCOUNT_PERCENT", "passed": true, "details": "Discount 10.0% within limit 20%" },
-      { "rule": "FLOOR_PRICE_BOUND", "passed": true, "details": "Price meets margin requirements" },
-      { "rule": "SESSION_VELOCITY", "passed": true, "details": "Proposal 1 within session limit 5" }
-    ]
-  },
-  "razorpayOrder": {
-    "success": true,
-    "orderId": "order_NzE5MzM5...",
-    "amount": 161999,
-    "currency": "INR",
-    "contractHash": "a8f5f167f44f4964e6c998dee827110c..."
-  },
-  "traceId": "trace_1725280000000_abc"
-}
-```
-
-### 2. `GET /api/metrics`
-Returns aggregated growth and telemetry metrics (AOV, Growth Uplift %, Approved/Blocked counts) computed dynamically from decision traces.
-
-### 3. `GET /api/traces`
-Returns sanitized historical decision logs for telemetry audit logs and dashboard tables.
-
-## Getting Started
+## Running Locally
 
 ### Prerequisites
+- Node.js (v20+) and npm
+- Groq API Key
+- Razorpay Test Mode Credentials
 
-- Node.js (v18 or higher)
-- npm (v9 or higher with workspaces support)
-- A Groq API Key (or OpenAI-compatible API key) for Growth Agent execution.
-
-### Environment Setup
-
-Create a `.env` file in the project root directory:
-
+### Environment Variables
+Create a `.env` file in the root directory:
 ```env
 PORT=3000
 GROQ_API_KEY=your_groq_api_key_here
-RAZORPAY_KEY_ID=rzp_test_your_key_id
-RAZORPAY_KEY_SECRET=your_razorpay_secret
+RAZORPAY_KEY_ID=your_razorpay_test_key_id
+RAZORPAY_KEY_SECRET=your_razorpay_test_secret
 ```
 
-*Note: Razorpay Test Mode credentials are required for payment execution. If credentials are missing or invalid, the payment step fails clearly rather than using a simulated payment fallback.*
-
-### Installation & Local Development
-
-1. **Install dependencies across workspaces:**
+### Starting the Development Environment
+1. Install dependencies:
    ```bash
    npm install
    ```
-
-2. **Run Backend and Frontend concurrently:**
+2. Start the application concurrently:
    ```bash
    npm run dev
    ```
-   - Backend service runs on `http://localhost:3000`
-   - Frontend dashboard runs on `http://localhost:5173`
+   - Frontend runs on `http://localhost:5173`
+   - Backend runs on `http://localhost:3000`
 
-3. **Build production bundles:**
-   ```bash
-   npm run build
-   ```
-
-### Running Tests
-
-To run the backend test suite:
+### Building for Production
 ```bash
-npm run build:backend
-npm run test:backend
+npm run build
 ```
 
-## Security & Data Privacy Boundary
+### Production Docker Setup
+AgentRail has been containerized for production deployment. The Docker configuration has been statically reviewed for secure context boundaries (note: not locally executed in this environment).
+```bash
+docker compose up --build -d
+docker compose logs -f
+docker compose down
+```
+- Frontend: `http://localhost:8080`
+- Backend: `http://localhost:3000`
 
-AgentRail enforces strict isolation of sensitive merchant financial data:
-- **Floor Prices & Cost Structures**: Cost bases and minimum floor prices exist strictly in server memory (`backend/src/catalog`) and are never included in LLM agent prompts or returned in public API payloads.
-- **Trace Sanitization**: All decision trace records pass through `sanitizeTrace()` before being logged or exposed via `/api/traces`, removing any private financial metrics.
-- **Payment Credential Isolation**: Razorpay API secrets reside exclusively on the server and are never accessible to client applications.
+## Testing and Verification
+
+Run the backend test suite:
+```bash
+npm run test:backend
+```
+Tests in `backend/tests/` verify:
+- Agent catalog tool responses and correctness.
+- `TransactionProposal` generation and validation.
+
+## Design Principles
+
+1. **AI for reasoning, deterministic code for enforcement.**
+2. **Merchant control over financial boundaries.**
+3. **No payment execution before policy approval.**
+4. **Private financial data stays server-side.**
+5. **Every transaction decision is traceable.**
+6. **Test Mode only.**
+
+## Project Status
+
+The core AgentRail flow is fully implemented. The system correctly isolates the LLM Growth Agent from the RailFence policy gateway and successfully processes or blocks transactions based on merchant rules. The project is explicitly designed for Razorpay Test Mode.
